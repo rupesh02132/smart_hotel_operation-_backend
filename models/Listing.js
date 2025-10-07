@@ -100,7 +100,7 @@ const listingSchema = mongoose.Schema(
   }
 );
 
-// Create geospatial index for location field
+
 listingSchema.index({ location: '2dsphere' });
 
 
