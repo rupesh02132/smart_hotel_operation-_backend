@@ -1,51 +1,64 @@
 const paymentService = require("../service/paymentService");
-const { updatePaymentInformationByBookingId } = require("../service/paymentService");
+const asyncHandler = require("express-async-handler");
 const Booking = require("../models/Booking");
-// @desc    Create payment link using booking ID
+const Listing = require("../models/Listing");
 
-const createPaymentLinkByListing = async (req, res) => {
+const createPaymentLink = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { bookingId } = req.params;
 
-    if (!id) {
-      return res.status(400).json({ message: "Listing ID is required" });
-    }
+    const result =
+      await paymentService.createPaymentLinkByBookingId(bookingId);
 
-    const paymentLink = await paymentService.createPaymentLinkByBookingId(id);
-    return res.status(200).json(paymentLink);
-  } catch (err) {
-    console.error("Error creating payment link:", err.message);
-    return res.status(500).json({ message: err.message });
-  }
-};
-
-
-// @desc    Update payment status using booking ID
-
-const updatePaymentInformation = async (req, res) => {
-  try {
-    const { payment_id, booking_id } = req.query;
-
-    if (!payment_id || !booking_id) {
-      return res.status(400).json({ message: "payment_id and booking_id are required" });
-    }
-
-    const result = await updatePaymentInformationByBookingId({
-      payment_id,
-      booking_id,
+    res.status(200).json({
+      success: true,
+      data: result,
     });
+  } catch (error) {
+    console.error("Payment link error:", error.message);
 
-    return res.status(200).json(result);
-  } catch (err) {
-    console.error("Error updating payment info:", err.message);
-    return res.status(500).json({ message: "Payment update failed: " + err.message });
+   res.status(400).json({
+  success: false,
+  message: error.message,
+  stack: error.stack, // TEMP ONLY
+});
+
   }
 };
 
 
 
 
-module.exports = {
-  createPaymentLinkByListing,
-  updatePaymentInformation ,
-};
+/* ================================
+   GET HOST TOTAL EARNINGS
+   GET /api/payments/host/earnings
+================================ */
+const getHostEarnings = asyncHandler(async (req, res) => {
+  const hostId = req.user._id;
+
+  // ✅ Step 1: Find all listings created by host
+  const hostListings = await Listing.find({ user: hostId }).select("_id");
+
+  const listingIds = hostListings.map((l) => l._id);
+
+  // ✅ Step 2: Find paid bookings for those listings
+  const bookings = await Booking.find({
+    listing: { $in: listingIds },
+    paymentStatus: "paid",
+  });
+
+  // ✅ Step 3: Calculate earnings
+  const totalEarnings = bookings.reduce(
+    (sum, booking) => sum + booking.totalPrice,
+    0
+  );
+
+  res.json({
+    totalEarnings,
+    totalBookings: bookings.length,
+  });
+});
+
+
+
+module.exports = { createPaymentLink, getHostEarnings };

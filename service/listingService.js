@@ -1,159 +1,269 @@
 const Listing = require("../models/Listing");
 
+/* ======================
+   CLOUDINARY IMAGE NORMALIZER
+   Stores Only URL Strings
+====================== */
+const normalizeImages = (req) => {
+  let images = [];
+
+  /* ✅ Case 1: Images Uploaded via Multer (req.files) */
+  if (req.files && req.files.length > 0) {
+    images = req.files.map((file) => file.path);
+  }
+
+  /* ✅ Case 2: Images Sent as URLs in Body (req.body.images) */
+  else if (req.body.images && req.body.images.length > 0) {
+    images = Array.isArray(req.body.images)
+      ? req.body.images
+      : req.body.images.split(",").map((img) => img.trim());
+  }
+
+  return images;
+};
+
+
+/* ======================
+   CREATE HOTEL LISTING
+====================== */
+const createListingService = async (req, userId) => {
+  const images = normalizeImages(req);
+
+  if (!images.length) {
+    throw new Error("Upload at least one hotel image");
+  }
+
+  /* ✅ SAFE LOCATION PARSE */
+  const lng = parseFloat(req.body.longitude);
+  const lat = parseFloat(req.body.latitude);
+
+  if (isNaN(lng) || isNaN(lat)) {
+    throw new Error("Valid longitude and latitude are required");
+  }
+
+  const location = {
+    type: "Point",
+    coordinates: [lng, lat],
+  };
+
+  if (!req.body.title || !req.body.city || !req.body.address) {
+    throw new Error("Title, address, and city are required.");
+  }
+
+  const listing = await Listing.create({
+    user: userId,
+    title: req.body.title,
+    address: req.body.address,
+    hotelcode: req.body.hotelcode,
+    city: req.body.city,
+    country: req.body.country,
+    description: req.body.description,
+    images,
+    category: req.body.category,
+    location,
+  });
+
+  return listing;
+};
+
+/* ======================
+   UPDATE HOTEL LISTING
+====================== */
+const updateListing = async (id, userId, data, req = null) => {
+  const listing = await Listing.findById(id);
+  if (!listing) throw new Error("Hotel not found");
+
+  if (listing.user.toString() !== userId.toString()) {
+    throw new Error("Not authorized");
+  }
+
+  listing.title = data.title ?? listing.title;
+  listing.address = data.address ?? listing.address;
+  listing.city = data.city ?? listing.city;
+  listing.country = data.country ?? listing.country;
+  listing.description = data.description ?? listing.description;
+  listing.hotelcode = data.hotelcode ?? listing.hotelcode;
+  listing.category = data.category ?? listing.category;
+
+  /* ✅ Amenities */
+  if (data.hotelAmenities) {
+    listing.hotelAmenities = Array.isArray(data.hotelAmenities)
+      ? data.hotelAmenities
+      : data.hotelAmenities.split(",").map((a) => a.trim());
+  }
+
+  /* ✅ Images */
+  if (req) {
+    const newImages = normalizeImages(req);
+    if (newImages.length) {
+      listing.images = [...new Set([...listing.images, ...newImages])];
+    }
+  }
+
+  if (Array.isArray(data.images)) {
+    listing.images = data.images;
+  }
+
+  /* ✅ SAFE LOCATION UPDATE */
+  if (req?.body?.longitude && req?.body?.latitude) {
+    const lng = parseFloat(req.body.longitude);
+    const lat = parseFloat(req.body.latitude);
+
+    if (!isNaN(lng) && !isNaN(lat)) {
+      listing.location = {
+        type: "Point",
+        coordinates: [lng, lat],
+      };
+    }
+  }
+
+  return await listing.save();
+};
+
+/* ======================
+   DELETE HOTEL LISTING
+====================== */
+const deleteListing = async (id, userId) => {
+  const listing = await Listing.findById(id);
+
+  if (!listing) throw new Error("Hotel not found");
+
+  if (listing.user.toString() !== userId.toString()) {
+    throw new Error("Not authorized");
+  }
+
+  await Listing.findByIdAndDelete(id);
+
+  return { message: "✅ Hotel deleted successfully" };
+};
+
+
+
+/* ======================
+   GET HOTEL BY ID
+====================== */
 const getListingById = async (id) => {
   return await Listing.findById(id)
-    .populate("user")
+    .populate("user", "firstname lastname email")
     .populate({
       path: "review",
       populate: { path: "user", select: "firstname lastname" },
     });
 };
+/* ======================
+   HOST HOTEL LISTINGS
+====================== */
+const getHostListings = async (userId) => {
+  return await Listing.find({ user: userId }).sort({ createdAt: -1 });
+};
 
-const createListing = async (userId, data) => {
+/* ======================
+   GET ALL HOTELS
+====================== */
+const getAllListings = async () => {
+  return await Listing.find()
+    .populate("user", "firstname lastname")
+    .populate({
+      path: "rooms",
+      select: "roomNumber basePrice status roomType images"
+    })
+    .sort({ createdAt: -1 });
+};
+/* ======================
+   HOTEL SEARCH (No Room Filters)
+====================== */
+
+
+const getListings = async (queryOptions) => {
   const {
-    title,
-    address,
     city,
     country,
-    description,
-    price,
-    guests,
-    bedrooms,
-    beds,
-    baths,
-    amenities,
-    category,
-    images,
-    location,
-  } = data;
-
-  const listing = new Listing({
-    user: userId,
     title,
-    address,
-    city,
-    country,
-    description,
-    price,
-    guests,
-    bedrooms,
-    beds,
-    baths,
-    amenities: Array.isArray(amenities)
-      ? amenities
-      : amenities?.split(",") || [],
-    images: Array.isArray(images) ? images : [],
-    category,
-    location: location || { type: "Point", coordinates: [0, 0] },
-  });
+    rating,
+    sortBy,
 
-  return await listing.save();
-};
+    lat,
+    lng,
+    radius = 10000,
 
-const createMultipleListings = async (listings) => {
-  if (!Array.isArray(listings) || listings.length === 0) {
-    throw new Error("Listings array is required");
+    skip = 0,
+    limit = 15,
+  } = queryOptions;
+
+  const query = {};
+
+  /* ============================
+     TEXT SEARCH FILTERS
+  ============================ */
+
+  if (city) {
+    query.city = new RegExp(city, "i");
   }
 
-  const createdListings = [];
-  for (const listing of listings) {
-    const newListing = new Listing(listing);
-    await newListing.save();
-    createdListings.push(newListing);
+  if (country) {
+    query.country = new RegExp(country, "i");
   }
 
-  return createdListings;
-};
-
-const updateListing = async (id, userId, data) => {
-  const listing = await Listing.findById(id);
-  if (!listing) {
-    throw new Error("Listing not found");
+  if (title) {
+    query.title = new RegExp(title, "i");
   }
 
-  if (listing.user.toString() !== userId.toString()) {
-    throw new Error("Not authorized to update this listing");
+  if (rating) {
+    query.ratingAvg = { $gte: Number(rating) };
   }
 
-  listing.title = data.title || listing.title;
-  listing.address = data.address || listing.address;
-  listing.city = data.city || listing.city;
-  listing.country = data.country || listing.country;
-  listing.description = data.description || listing.description;
-  listing.price = data.price || listing.price;
-  listing.guests = data.guests || listing.guests;
-  listing.bedrooms = data.bedrooms || listing.bedrooms;
-  listing.beds = data.beds || listing.beds;
-  listing.baths = data.baths || listing.baths;
+  /* ============================
+     GEO LOCATION SEARCH
+  ============================ */
 
-  if (data.amenities) {
-    listing.amenities = Array.isArray(data.amenities)
-      ? data.amenities
-      : data.amenities.split(",");
-  }
-
-  listing.category = data.category || listing.category;
-
-  if (data.images && Array.isArray(data.images)) {
-    listing.images = data.images;
-  }
-
-  if (
-    data.location &&
-    data.location.type === "Point" &&
-    Array.isArray(data.location.coordinates) &&
-    data.location.coordinates.length === 2
-  ) {
-    listing.location = {
-      type: "Point",
-      coordinates: data.location.coordinates.map(Number),
+  if (lat && lng) {
+    query.location = {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: [Number(lng), Number(lat)],
+        },
+        $maxDistance: Number(radius),
+      },
     };
   }
 
-  return await listing.save();
-};
+  /* ============================
+     SORTING
+  ============================ */
 
-const deleteListing = async (id) => {
-  return await Listing.findByIdAndDelete(id);
-};
+  let sort = { createdAt: -1 };
 
-const getHostListings = async (userId) => {
-  return await Listing.find({ user: userId });
-};
+  if (sortBy === "rating") sort = { ratingAvg: -1 };
+  if (sortBy === "priceLow") sort = { price: 1 };
+  if (sortBy === "priceHigh") sort = { price: -1 };
 
-const getAllListings = async () => {
-  return await Listing.find();
-};
-
-const getListings = async (queryOptions) => {
-  const { city, skip = 0, limit = 15 } = queryOptions;
-
-  const skipNum = parseInt(skip);
-  const limitNum = parseInt(limit);
-
-  const query = {};
-  if (city) query.city = new RegExp(city, "i");
+  /* ============================
+     PAGINATION
+  ============================ */
 
   const totalCount = await Listing.countDocuments(query);
 
   const listings = await Listing.find(query)
-    .populate("user")
-    .skip(skipNum)
-    .limit(limitNum)
-    .sort({ createdAt: -1 })
+    .populate("user", "firstname lastname")
+    .skip(Number(skip))
+    .limit(Number(limit))
+    .sort(sort)
     .lean();
 
-  return {
-    totalCount,
-    listings,
-  };
+  return { totalCount, listings };
 };
 
+
+
+
+/* ======================
+   EXPORTS
+====================== */
 module.exports = {
   getListings,
   getListingById,
-  createListing,
-  createMultipleListings,
+  createListingService,
   updateListing,
   deleteListing,
   getHostListings,

@@ -65,5 +65,62 @@ const deleteUserController = async (req, res) => {
   }
 };
 
+const getUserByEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+    const user = await userService.getUserByEmail(email);
+    return res.status(200).send({ user });
+  } catch (err) {
+    return res.status(500).send({ message: err.message });
+  }
+};
 
-module.exports = { getUserProfile, getAllUser, updateUserProfile,deleteUserController };
+const getUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await userService.getUserById(userId);
+    return res.status(200).send({ user });
+  } catch (err) {
+    return res.status(500).send({ message: err.message });
+  }
+};
+
+
+
+
+
+const updateAvatar = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const updatedUser =
+      await userService.updateAvatarService(userId, req.file);
+
+    res.status(200).json({
+      success: true,
+      message: "Avatar updated successfully",
+      avatar: updatedUser.avatar,
+    });
+  } catch (error) {
+    console.log("Avatar update error:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+
+
+
+module.exports = {
+  getUserProfile,
+  getAllUser,
+  updateUserProfile,
+  deleteUserController,
+  getUserByEmail,
+  getUserById,
+  updateAvatar
+};

@@ -10,6 +10,10 @@ const SECRET_KEY = process.env.SECRET_KEY || "rupeshkumar";
 const generateToken = (userId) => {
     return jwt.sign({ userId }, SECRET_KEY, { expiresIn: "7d" }); 
 };
+const generateTokenforReset = (userId) => {
+    return jwt.sign({ userId }, SECRET_KEY, { expiresIn: "15m" }); 
+};
+
 
 // Verify Access Token and Extract User ID
 const getUserIdFromToken = (token) => {
@@ -22,7 +26,7 @@ const getUserIdFromToken = (token) => {
     }
 };
 
-module.exports = { generateToken, getUserIdFromToken };
+module.exports = { generateToken, getUserIdFromToken ,generateTokenforReset};
 
 
 

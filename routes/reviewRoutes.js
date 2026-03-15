@@ -1,11 +1,54 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const authenticate = require('../middleware/authMiddleware'); 
-const { createReview,getReviewByIdController,getAllReviewControll,deleteReviewController } = require('../controllers/reviewController');
 
-router.post('/create',authenticate, createReview);
-router.get('/',authenticate,getAllReviewControll)
-router.get("/:id",authenticate, getReviewByIdController);
-router.delete('/:id/delete',authenticate,deleteReviewController)
+const {
+  createReview,
+  getReviewsByListing,
+  getAllReviews,
+  deleteReview,
+  respondToReview,
+} = require("../controllers/reviewController");
+
+const { protect, authorize } = require("../middleware/authMiddleware");
+
+/* ============================================================
+   CREATE REVIEW (USER)
+============================================================ */
+router.post("/", protect, createReview);
+
+/* ============================================================
+   GET REVIEWS FOR A LISTING (PUBLIC)
+============================================================ */
+router.get("/listing/:listingId", getReviewsByListing);
+
+/* ============================================================
+   GET ALL REVIEWS (ADMIN / MANAGER)
+============================================================ */
+router.get(
+  "/",
+  protect,
+  authorize("admin", "manager"),
+  getAllReviews
+);
+
+/* ============================================================
+   DELETE REVIEW (ADMIN)
+============================================================ */
+router.delete(
+  "/:id",
+  protect,
+  authorize("admin"),
+  deleteReview
+);
+
+/* ============================================================
+   HOTEL RESPONSE TO REVIEW (ADMIN / MANAGER)
+============================================================ */
+router.post(
+  "/:id/respond",
+  protect,
+  authorize("admin", "manager"),
+  respondToReview
+);
 
 module.exports = router;

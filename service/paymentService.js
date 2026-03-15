@@ -1,108 +1,78 @@
 const razorpay = require("../config/razorpayClient");
 const Booking = require("../models/Booking");
-const Listing = require("../models/Listing");
+
+const sanitizePhone = (phone) => {
+  if (!phone) return "9999999999";
+
+  // Convert to string, remove non-digits
+  const cleaned = phone.toString().replace(/\D/g, "");
+
+  // Razorpay requires 10–15 digits
+  if (cleaned.length < 10) return "9999999999";
+
+  return cleaned.slice(-10); // keep last 10 digits (India-safe)
+};
 
 const createPaymentLinkByBookingId = async (bookingId) => {
-  console.log("Booking ID:", bookingId);
+  console.log("▶ paymentService called with bookingId:", bookingId);
+
+  if (!bookingId) {
+    throw new Error("Booking ID is missing");
+  }
+
+  const booking = await Booking.findById(bookingId).populate("user");
+
+  if (!booking) {
+    throw new Error("Booking not found");
+  }
+
+  if (booking.isPaid) {
+    throw new Error("Booking already paid");
+  }
+
+  /* ===============================
+     SANITIZED CUSTOMER CONTACT
+  =============================== */
+  const customerContact = sanitizePhone(
+    booking.user.phone || booking.user.mobile
+  );
 
   try {
-    const booking = await Booking.findById(bookingId)
-      .populate("user")
-      .populate("listing");
-
-    if (!booking) {
-      throw new Error("Booking not found" + bookingId);
-    }
-
-    const user = booking.user;
-    const listing = booking.listing;
-
-    const paymentLinkRequest = {
+    const paymentLink = await razorpay.paymentLink.create({
       amount: booking.totalPrice * 100,
       currency: "INR",
       reference_id: booking._id.toString(),
+
       customer: {
-        name: `${user.firstname} ${user.lastname}`,
-        email: user.email,
-        contact: user.mobile,
+        name: `${booking.user.firstname} ${booking.user.lastname}`,
+        email: booking.user.email,
+        contact: customerContact, // ✅ FIXED
       },
+
       notify: { sms: true, email: true },
       reminder_enable: true,
-      callback_url: `${process.env.FRONTEND_URL}/payment/${booking._id}`,
-      callback_method: "get",
-    };
 
-    // Try to create payment link
-    const paymentLink = await razorpay.paymentLink.create(paymentLinkRequest);
+callback_url: `${process.env.FRONTEND_URL}/payment/${booking._id}`,
+callback_method: "get",
 
-    // Add this check:
-    if (!paymentLink || !paymentLink.short_url) {
-      console.log("Invalid Razorpay response:", paymentLink);
-      throw new Error("Invalid response from Razorpay");
+    });
+
+    if (!paymentLink?.short_url) {
+      throw new Error("Invalid Razorpay response");
     }
 
     return {
       paymentLinkId: paymentLink.id,
-      payment_link_url: paymentLink.short_url,
+      paymentUrl: paymentLink.short_url,
     };
   } catch (err) {
-    console.error("Payment link creation failed:", err.message);
-    throw new Error("Payment link creation failed: " + err.message);
+    console.error("❌ Razorpay error:", err);
+
+    throw new Error(
+      err?.error?.description ||
+        "Failed to create Razorpay payment link"
+    );
   }
 };
 
-const updatePaymentInformationByBookingId = async ({
-  payment_id,
-  booking_id,
-}) => {
-  try {
-    console.log("Booking ID:", booking_id);
-    console.log("Payment ID:", payment_id);
-
-    const booking = await Booking.findById(booking_id).populate("listing");
-
-    if (!booking) {
-      throw new Error("Booking not found");
-    }
-
-    if (booking.isPaid) {
-      return {
-        success: true,
-        message: "Booking already marked as paid",
-        bookingId: booking._id,
-      };
-    }
-
-    const payment = await razorpay.payments.fetch(payment_id);
-    if (payment.status !== "captured") {
-      throw new Error("Payment not captured");
-    }
-
-    booking.paymentDetails = {
-      paymentId: payment_id,
-      status: payment.status,
-      method: payment.method,
-      amount: payment.amount / 100,
-    };
-    booking.isPaid = true;
-    await booking.save();
-
-    await Listing.findByIdAndUpdate(booking.listing._id, {
-      isAvailable: false,
-    });
-
-    return {
-      success: true,
-      message: "Payment captured and booking updated",
-      bookingId: booking._id,
-    };
-  } catch (err) {
-    console.error("Payment update failed:", err.message);
-    throw new Error("Payment update failed: " + err.message);
-  }
-};
-
-module.exports = {
-  createPaymentLinkByBookingId,
-  updatePaymentInformationByBookingId,
-};
+module.exports = { createPaymentLinkByBookingId };

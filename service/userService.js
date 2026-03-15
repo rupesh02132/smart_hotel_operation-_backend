@@ -5,17 +5,40 @@ const jwtProvider = require("../utils/generateToken");
 const createUser = async (userData) => {
   try {
     let { firstname, lastname, email, password, phone, role } = userData;
-    const isUserExist = await User.findOne({ email });
 
-    if (isUserExist) {
-      throw new Error("User already exist", email);
+    // normalize email
+    email = email.toLowerCase();
+
+     // ✅ Password Complexity Check
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_\-+=])[A-Za-z\d@$!%*?&#^()_\-+=]{8,}$/;
+
+    if (!passwordRegex.test(password)) {
+      throw new Error(
+        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
+      );
     }
 
-    password = await bcrypt.hash(password, 10);
-    const user = await User.create({ firstname, lastname, email, password, phone, role });
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      throw new Error("User already exists");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      firstname,
+      lastname,
+      email,
+      password: hashedPassword,
+      phone,
+      role: role || "user",
+    });
 
     return user;
   } catch (err) {
+    console.error("CREATE USER ERROR:", err.message);
     throw new Error(err.message);
   }
 };
@@ -58,6 +81,22 @@ const getUserProfileByToken = async (token) => {
   }
 };
 
+const getUserByEmailWithPassword = async (email) => {
+  try {
+    const user = await User.findOne({ email }).select("+password");
+    if (!user) {
+      throw new Error("user not found with this email", email);
+    }
+    return user;
+  } catch (err) {
+    throw new Error(err.message);
+  }
+};
+
+const findByPhone = async (phone) => {
+  return await User.findOne({ phone });
+};
+
 // get all user
 
 const getAllUser = async () => {
@@ -78,16 +117,42 @@ const updateUserProfile = async (userId, data) => {
   }
 };
 
-const deleteUser=async(userId)=>{
-
-
+const deleteUser = async (userId) => {
   try {
     const user = await User.findByIdAndDelete(userId);
     return user;
   } catch (err) {
     throw new Error(err.message);
   }
-}
+};
+
+
+
+
+const updateAvatarService = async (userId, file) => {
+  console.log("file:", file);
+  if (!file) {
+    throw new Error("No image uploaded");
+  }
+
+  /* Cloudinary or local path */
+  const avatarUrl =
+    file.path || file.secure_url;
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  user.avatar = avatarUrl;
+  console.log("user.avatar:", user.avatar);
+  await user.save();
+
+  return user;
+};
+
+
 
 module.exports = {
   createUser,
@@ -96,5 +161,8 @@ module.exports = {
   getUserProfileByToken,
   getAllUser,
   updateUserProfile,
-  deleteUser
+  deleteUser,
+  getUserByEmailWithPassword,
+  findByPhone,
+  updateAvatarService,
 };
