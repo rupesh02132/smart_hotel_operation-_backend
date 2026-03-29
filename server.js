@@ -64,6 +64,8 @@ app.use("/api/qr", require("./routes/qrRoutes"));
 app.use("/api/invoice", require("./routes/invoiceRoutes"));
 app.use("/api/pricing", require("./routes/pricingRoutes"));
 app.use("/api/housekeeping", require("./routes/housekeepingRoutes"));
+app.use("/api/notifications",  require("./routes/notificationRoutes"));
+
 
 /* ============================================================
    ERROR HANDLER

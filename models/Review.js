@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const reviewSchema = new mongoose.Schema(
   {
     user: {
@@ -17,6 +16,11 @@ const reviewSchema = new mongoose.Schema(
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
+    },
+
+    room: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Room",
     },
 
     serviceType: {
@@ -43,22 +47,15 @@ const reviewSchema = new mongoose.Schema(
       default: true,
     },
 
-    response: {
-      type: String,
-    },
-
-    respondedAt: {
-      type: Date,
-    },
+    response: String,
+    respondedAt: Date,
 
     sentiment: {
       type: String,
       enum: ["Positive", "Neutral", "Negative"],
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Review", reviewSchema);

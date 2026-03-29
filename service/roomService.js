@@ -3,6 +3,7 @@ const Room = require("../models/Room");
 
 
 
+
 const normalizeImages = (req) => {
   let images = [];
 
@@ -270,9 +271,7 @@ const updateRoomStatusService = async (roomId, user, newStatus) => {
   const room = await Room.findById(roomId).populate("listing");
   if (!room) throw new Error("Room not found");
 
-  /* ------------------------------
-     AUTHORIZATION
-  ------------------------------ */
+  /* AUTH */
   const isOwner =
     room.listing.user.toString() === user._id.toString();
 
@@ -284,9 +283,7 @@ const updateRoomStatusService = async (roomId, user, newStatus) => {
     throw new Error("Not authorized");
   }
 
-  /* ------------------------------
-     VALID STATUS ENUM
-  ------------------------------ */
+  /* ENUM */
   const allowedStatuses = [
     "Vacant",
     "Occupied",
@@ -300,18 +297,22 @@ const updateRoomStatusService = async (roomId, user, newStatus) => {
     throw new Error("Invalid room status");
   }
 
-  /* ------------------------------
-     STATE TRANSITION RULES
-  ------------------------------ */
+  const currentStatus = room.status;
+
+  /* ⭐ SAME STATUS SAFE EXIT */
+  if (currentStatus === newStatus) {
+    return room;
+  }
+
+  /* STATE MACHINE */
   const validTransitions = {
-    Available: ["Maintenance", "Blocked"],
+    Vacant: ["Occupied", "Maintenance", "Blocked", "Ready"],
+    Ready: ["Occupied", "Maintenance", "Blocked"],
     Occupied: ["Cleaning", "Maintenance"],
     Cleaning: ["Vacant", "Maintenance"],
     Maintenance: ["Vacant"],
     Blocked: ["Vacant"],
   };
-
-  const currentStatus = room.status;
 
   if (
     validTransitions[currentStatus] &&
@@ -322,9 +323,7 @@ const updateRoomStatusService = async (roomId, user, newStatus) => {
     );
   }
 
-  /* ------------------------------
-     APPLY STATUS
-  ------------------------------ */
+  /* APPLY */
   room.status = newStatus;
 
   if (newStatus === "Vacant") {

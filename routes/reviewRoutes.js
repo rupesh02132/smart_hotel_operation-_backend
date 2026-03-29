@@ -3,52 +3,28 @@ const router = express.Router();
 
 const {
   createReview,
-  getReviewsByListing,
   getAllReviews,
-  deleteReview,
   respondToReview,
+  getListingReviews,
+  deleteReview,
 } = require("../controllers/reviewController");
 
 const { protect, authorize } = require("../middleware/authMiddleware");
 
-/* ============================================================
-   CREATE REVIEW (USER)
-============================================================ */
 router.post("/", protect, createReview);
 
-/* ============================================================
-   GET REVIEWS FOR A LISTING (PUBLIC)
-============================================================ */
-router.get("/listing/:listingId", getReviewsByListing);
+router.get("/listing/:id", getListingReviews);
 
-/* ============================================================
-   GET ALL REVIEWS (ADMIN / MANAGER)
-============================================================ */
-router.get(
-  "/",
-  protect,
-  authorize("admin", "manager"),
-  getAllReviews
-);
+router.get("/", protect, authorize("admin", "manager"), getAllReviews);
 
-/* ============================================================
-   DELETE REVIEW (ADMIN)
-============================================================ */
-router.delete(
-  "/:id",
-  protect,
-  authorize("admin"),
-  deleteReview
-);
+router.delete("/:id", protect, deleteReview);
 
-/* ============================================================
-   HOTEL RESPONSE TO REVIEW (ADMIN / MANAGER)
-============================================================ */
 router.post(
   "/:id/respond",
   protect,
   authorize("admin", "manager"),
-  respondToReview
+  respondToReview,
 );
 
+module.exports = router;
 module.exports = router;

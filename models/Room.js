@@ -44,7 +44,7 @@ const roomSchema = mongoose.Schema(
 
     basePrice: { type: Number, default: 0 },
     dynamicPrice: { type: Number, default: 0 },
-    // price: { type: Number, default: 0 },
+  
 
     /* ======================
        ROOM AMENITIES

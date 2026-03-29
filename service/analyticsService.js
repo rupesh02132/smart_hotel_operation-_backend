@@ -1,5 +1,5 @@
 const Booking = require("../models/Booking");
-const Listing = require("../models/Listing");
+
 const Room = require("../models/Room");
 
 /* ============================================

@@ -2,6 +2,7 @@ const paymentService = require("../service/paymentService");
 const asyncHandler = require("express-async-handler");
 const Booking = require("../models/Booking");
 const Listing = require("../models/Listing");
+const Notification = require("../models/Notification");
 
 const createPaymentLink = async (req, res) => {
   try {
@@ -9,6 +10,15 @@ const createPaymentLink = async (req, res) => {
 
     const result =
       await paymentService.createPaymentLinkByBookingId(bookingId);
+
+      // ✅ Step 3: Send notification to user
+      await Notification.create({
+        user: req.user._id,
+        type: "payment",
+        title: "Payment Link Created",
+        message: `A payment link has been created for your booking.`,
+        link: `/booking/${bookingId}`,
+      });
 
     res.status(200).json({
       success: true,

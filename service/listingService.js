@@ -145,6 +145,7 @@ const deleteListing = async (id, userId) => {
 const getListingById = async (id) => {
   return await Listing.findById(id)
     .populate("user", "firstname lastname email")
+    .populate("rooms", "roomNumber basePrice status roomType images")
     .populate({
       path: "review",
       populate: { path: "user", select: "firstname lastname" },

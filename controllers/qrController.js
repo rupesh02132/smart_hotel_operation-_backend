@@ -443,15 +443,12 @@ const QRCode = require("qrcode");
 const jwt = require("jsonwebtoken");
 const { getIO } = require("../utils/socket");
 
-/* ============================================================
-   GENERATE QR
-   POST /api/qr/generate/:id
-   type: checkin | checkout
-============================================================ */
+
+
 const generateQR = async (req, res) => {
   try {
     const bookingId = req.params.id;
-    const { type } = req.body; // checkin | checkout
+    const { type } = req.body;
 
     if (!["checkin", "checkout"].includes(type)) {
       return res.status(400).json({
@@ -461,37 +458,50 @@ const generateQR = async (req, res) => {
 
     const booking = await Booking.findById(bookingId);
 
-    if (!booking)
+    if (!booking) {
       return res.status(404).json({
         message: "Booking not found",
       });
+    }
 
-    // =============================
-    // VALIDATE BASED ON TYPE
-    // =============================
+    /* =========================
+       CHECK-IN VALIDATION
+    ========================== */
 
     if (type === "checkin") {
-      if (booking.status !== "Booked")
+      if (booking.status !== "Booked") {
         return res.status(400).json({
-          message: "Check-in QR only for Booked status",
+          message: "Check-in allowed only when status = Booked",
         });
+      }
 
-      if (booking.paymentStatus !== "paid")
+      // support both structures
+      if (
+        booking.paymentStatus !== "paid" &&
+        booking.isPaid !== true
+      ) {
         return res.status(400).json({
           message: "Payment not completed",
         });
+      }
     }
+
+    /* =========================
+       CHECK-OUT VALIDATION
+    ========================== */
 
     if (type === "checkout") {
-      if (booking.status !== "Checked-In")
+      if (booking.status !== "checked-in") {
         return res.status(400).json({
-          message: "Checkout QR only for Checked-In status",
+          message:
+            "Checkout allowed only when status = checked-in",
         });
+      }
     }
 
-    // =============================
-    // CREATE TOKEN
-    // =============================
+    /* =========================
+       CREATE QR TOKEN
+    ========================== */
 
     const token = jwt.sign(
       {
@@ -520,14 +530,12 @@ const generateQR = async (req, res) => {
       qrImage,
       expiresAt: booking.qrExpiresAt,
     });
-
   } catch (err) {
     res.status(500).json({
       message: err.message,
     });
   }
 };
-
 /* ============================================================
    VERIFY QR (CHECK-IN / CHECK-OUT)
    POST /api/qr/verify/:token

@@ -1,8 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const listingService = require("../service/listingService");
-const Listing = require("../models/Listing");
-const Booking = require("../models/Booking");
-
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 /* ======================
    GET ALL LISTINGS (SMART SEARCH)
 ====================== */
@@ -25,9 +24,8 @@ const getListingById = asyncHandler(async (req, res) => {
   res.json(listing);
 });
 
-/* ======================
-   CREATE LISTING
-====================== */
+//  CREATE LISTING
+
 const createListing = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
 
@@ -36,16 +34,51 @@ const createListing = asyncHandler(async (req, res) => {
     throw new Error("Not authenticated");
   }
 
+  /* ⭐ create listing */
   const listing = await listingService.createListingService(req, userId);
+
+  /* ⭐ get users only id (fast query) */
+  const users = await User.find().select("_id").lean();
+
+  if (users.length > 0) {
+    const notifications = users.map((u) => ({
+      user: u._id,
+      type: "hotel",
+      title: "New Hotel Added",
+      message: `${listing.title} now available in ${listing.city}`,
+      link: `/hotel/${listing._id}/rooms`,
+      read: false,
+    }));
+
+    /* ⭐ bulk insert (very fast) */
+    await Notification.insertMany(notifications);
+  }
+
+  /* ⭐ REAL-TIME SOCKET BROADCAST */
+  const io = req.app.get("io");
+
+  if (io) {
+    users.forEach((u) => {
+      io.to(u._id.toString()).emit("newNotification", {
+        type: "hotel",
+        title: "New Hotel Added",
+        message: `${listing.title} now available in ${listing.city}`,
+        link: `/hotel/${listing._id}/rooms`,
+      });
+    });
+  }
+
+  /* ⭐ response */
   res.status(201).json(listing);
 });
+
 
 /* ======================
    BULK CREATE
 ====================== */
 const createMultipleListings = asyncHandler(async (req, res) => {
   const createdListings = await listingService.createMultipleListings(
-    req.body.listings
+    req.body.listings,
   );
 
   res.status(201).json(createdListings);
@@ -60,7 +93,7 @@ const updateListing = async (req, res) => {
       req.params.id,
       req.user._id,
       req.body,
-      req
+      req,
     );
 
     res.json(updatedListing);
@@ -69,7 +102,6 @@ const updateListing = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 /* ======================
    DELETE LISTING
@@ -106,10 +138,6 @@ const getAllListings = asyncHandler(async (req, res) => {
   res.json(listings);
 });
 
-
-
-
-
 module.exports = {
   getListings,
   getListingById,
@@ -120,5 +148,4 @@ module.exports = {
   getHostListings,
   getMyListings,
   getAllListings,
-
 };

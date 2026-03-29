@@ -7,6 +7,7 @@ const {
   getAllBookingsService,
   findBookingByIdOrListing
 } = require("../service/bookingService");
+const Notification = require("../models/Notification");
 
 const { processRefund } = require("../service/refundService");
 const asyncHandler =require("express-async-handler");
@@ -35,6 +36,14 @@ const createBooking = async (req, res) => {
         populate: { path: "listing", select: "title city" },
       });
 
+      await Notification.create({
+  user: populatedBooking.user._id,
+  type: "booking",
+  title: "Booking Confirmed",
+  message: `Room ${populatedBooking.room.roomNumber} at ${populatedBooking.room.listing.title} booked`,
+  link: `/booking/${populatedBooking._id}`,
+});
+
     getIO().emit("newBooking", {
       bookingId: populatedBooking._id,
       guest: populatedBooking.user?.firstname,
@@ -49,6 +58,8 @@ const createBooking = async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 };
+
+
 
 /* ============================================================
    GET MY BOOKINGS
