@@ -7,7 +7,6 @@ const path = require("path");
 const http = require("http");
 const morgan = require("morgan");
 const webhookRoutes = require("./routes/webhookRoutes");
-const Frontend_url = process.env.FRONTEND_URL;
 
 dotenv.config();
 connectDB();
@@ -22,7 +21,7 @@ require("./jobs/pricingScheduler");
 // ✅ CORS
 app.use(
   cors({
-    origin: Frontend_url,
+    origin: ["https://smarthotel-beta.vercel.app/"],
     credentials: true,
   })
 );
