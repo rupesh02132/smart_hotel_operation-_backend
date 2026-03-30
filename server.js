@@ -10,18 +10,31 @@ const webhookRoutes = require("./routes/webhookRoutes");
 
 dotenv.config();
 connectDB();
+
 const app = express();
-app.use("/api/webhook", webhookRoutes);
 
 /* ============================================================
    MIDDLEWARE
 ============================================================ */
-require("./jobs/pricingScheduler");
 
-// ✅ CORS
+// ✅ CORS (FIXED)
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://smarthotel-beta.vercel.app",
+  "https://smarthotel.vercel.app"
+];
+
 app.use(
   cors({
-    origin: ["https://smarthotel-beta.vercel.app/"],
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow Postman
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
     credentials: true,
   })
 );
@@ -33,7 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 // ✅ COOKIES
 app.use(cookieParser());
 
-// ✅ LOGGER (DEV MODE)
+// ✅ LOGGER (DEV ONLY)
 if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
@@ -42,13 +55,18 @@ if (process.env.NODE_ENV !== "production") {
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.static("public"));
 
+// ✅ WEBHOOK (keep before json if raw needed)
+app.use("/api/webhook", webhookRoutes);
+
+// Background jobs
+require("./jobs/pricingScheduler");
+
 /* ============================================================
    ROUTES
 ============================================================ */
 
 // Core routes
 app.use("/api/admin", require("./routes/adminRoutes"));
-
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/listings", require("./routes/listingRoutes"));
 app.use("/api/bookings", require("./routes/bookingRoutes"));
@@ -64,15 +82,14 @@ app.use("/api/qr", require("./routes/qrRoutes"));
 app.use("/api/invoice", require("./routes/invoiceRoutes"));
 app.use("/api/pricing", require("./routes/pricingRoutes"));
 app.use("/api/housekeeping", require("./routes/housekeepingRoutes"));
-app.use("/api/notifications",  require("./routes/notificationRoutes"));
-
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 /* ============================================================
    ERROR HANDLER
 ============================================================ */
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err.stack);
-  res.status(500).json({ message: "Internal Server Error" });
+  res.status(500).json({ message: err.message || "Internal Server Error" });
 });
 
 /* ============================================================
@@ -88,9 +105,5 @@ initSocket(server);
 const PORT = process.env.PORT || 5354;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Local Server: http://localhost:${PORT}`);
-
-  if (process.env.NGROK_URL) {
-    console.log(`🌍 Public (ngrok): ${process.env.NGROK_URL}`);
-  }
+  console.log(`🚀 Server running on port ${PORT}`);
 });
