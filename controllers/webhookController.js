@@ -30,7 +30,6 @@ const razorpayWebhook = async (req, res) => {
       payment?.notes?.bookingId ||
       event.payload?.payment_link?.entity?.reference_id;
 
-    console.log("📌 Booking ID:", bookingId);
 
     if (!bookingId) {
       console.log("❌ No bookingId found");
