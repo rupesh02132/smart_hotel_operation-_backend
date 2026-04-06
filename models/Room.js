@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Children } = require("react");
 
 const roomSchema = mongoose.Schema(
   {
@@ -34,6 +35,7 @@ const roomSchema = mongoose.Schema(
     ====================== */
 
     guests: { type: Number, required: true },
+    children: { type: Number, default: 0 },
     bedrooms: { type: Number, required: true },
     beds: { type: Number, required: true },
     baths: { type: Number, required: true },

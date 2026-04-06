@@ -85,12 +85,7 @@ const updateListing = async (id, userId, data, req = null) => {
   listing.hotelcode = data.hotelcode ?? listing.hotelcode;
   listing.category = data.category ?? listing.category;
 
-  /* ✅ Amenities */
-  if (data.hotelAmenities) {
-    listing.hotelAmenities = Array.isArray(data.hotelAmenities)
-      ? data.hotelAmenities
-      : data.hotelAmenities.split(",").map((a) => a.trim());
-  }
+
 
   /* ✅ Images */
   if (req) {

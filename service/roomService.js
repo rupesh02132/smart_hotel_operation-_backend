@@ -90,6 +90,7 @@ const createRoomService = async (req, user) => {
     floor: req.body.floor,
     roomType, // must match enum exactly
     guests: Number(req.body.guests) || 0,
+    children: Number(req.body.children) || 0,
     bedrooms: Number(req.body.bedrooms) || 0,
     beds: Number(req.body.beds) || 0,
     baths: Number(req.body.baths) || 0,
@@ -142,6 +143,7 @@ const updateRoomService = async (roomId, user, req) => {
   room.roomType = req.body.roomType ?? room.roomType;
   room.basePrice = req.body.basePrice ?? room.basePrice;
   room.guests = req.body.guests ?? room.guests;
+  room.children = req.body.children ?? room.children;
   room.beds = req.body.beds ?? room.beds;
   room.baths = req.body.baths ?? room.baths;
 
