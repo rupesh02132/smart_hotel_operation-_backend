@@ -11,9 +11,6 @@ dotenv.config();
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-/* ============================================================
-   REGISTER USER + EMAIL OTP
-============================================================ */
 const register = async (req, res) => {
   try {
     const user = await userService.createUser(req.body);
