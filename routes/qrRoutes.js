@@ -16,7 +16,6 @@ const router = express.Router();
 router.post(
   "/generate/:id",
   protect,
-
   generateQR
 );
 

@@ -15,19 +15,67 @@ const asyncHandler =require("express-async-handler");
 const QRCode = require("qrcode");
 const jwt = require("jsonwebtoken");
 const { getIO } = require("../utils/socket");
-
 const Booking = require("../models/Booking");
 const Room = require("../models/Room");
+const { calculateDynamicPrice } = require("../utils/dynamicPricing");
 
-/* ============================================================
-   CREATE BOOKING
-============================================================ */
+
+
 const createBooking = async (req, res) => {
   try {
+    const { room, checkInDate, checkOutDate } = req.body;
+
+    /* ======================
+       VALIDATION
+    ====================== */
+
+    if (!room || !checkInDate || !checkOutDate) {
+      throw new Error("Room, check-in and check-out dates are required");
+    }
+
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+
+    if (isNaN(checkIn) || isNaN(checkOut)) {
+      throw new Error("Invalid date format");
+    }
+
+    if (checkOut <= checkIn) {
+      throw new Error("Check-out must be after check-in");
+    }
+
+    /* ======================
+       🔥 DYNAMIC PRICING
+    ====================== */
+
+    const pricing = await calculateDynamicPrice(room, checkInDate);
+
+    /* ======================
+       CALCULATE NIGHTS
+    ====================== */
+
+    const nights = Math.ceil(
+      (checkOut - checkIn) / (1000 * 60 * 60 * 24)
+    );
+
+    const totalPrice = pricing.finalPrice * nights;
+
+    /* ======================
+       CREATE BOOKING
+    ====================== */
+
     const createdBooking = await createBookingService({
       userId: req.user._id,
       ...req.body,
+      pricePerNight: pricing.finalPrice,
+      totalPrice,
+      lockedPrice: true,             // 🔒 lock price
+      priceLockedAt: new Date(),
     });
+
+    /* ======================
+       POPULATE BOOKING
+    ====================== */
 
     const populatedBooking = await Booking.findById(createdBooking._id)
       .populate("user", "firstname lastname email")
@@ -36,13 +84,21 @@ const createBooking = async (req, res) => {
         populate: { path: "listing", select: "title city" },
       });
 
-      await Notification.create({
-  user: populatedBooking.user._id,
-  type: "booking",
-  title: "Booking Confirmed",
-  message: `Room ${populatedBooking.room.roomNumber} at ${populatedBooking.room.listing.title} booked`,
-  link: `/booking/${populatedBooking._id}`,
-});
+    /* ======================
+       🔔 NOTIFICATION
+    ====================== */
+
+    await Notification.create({
+      user: populatedBooking.user._id,
+      type: "booking",
+      title: "Booking Confirmed",
+      message: `Room ${populatedBooking.room.roomNumber} at ${populatedBooking.room.listing.title} booked`,
+      link: `/booking/${populatedBooking._id}`,
+    });
+
+    /* ======================
+       📡 SOCKET EVENT
+    ====================== */
 
     getIO().emit("newBooking", {
       bookingId: populatedBooking._id,
@@ -53,11 +109,23 @@ const createBooking = async (req, res) => {
       status: populatedBooking.status,
     });
 
-    res.status(201).json(populatedBooking);
+    /* ======================
+       RESPONSE
+    ====================== */
+
+    res.status(201).json({
+      ...populatedBooking.toObject(),
+      pricing,
+      nights,
+    });
+
   } catch (err) {
+    console.error("❌ Booking Error:", err.message);
     res.status(400).json({ message: err.message });
   }
 };
+
+
 
 
 

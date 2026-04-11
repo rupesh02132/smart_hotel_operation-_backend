@@ -158,7 +158,7 @@ const getHostListings = async (userId) => {
 ====================== */
 const getAllListings = async () => {
   return await Listing.find()
-    .populate("user", "firstname lastname")
+    .populate("user", "firstname lastname role")
     .populate({
       path: "rooms",
       select: "roomNumber basePrice status roomType images"

@@ -2,31 +2,22 @@ const mongoose = require("mongoose");
 
 const bookingSchema = mongoose.Schema(
   {
-    /* ======================
-       USER
-    ====================== */
     user: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: "User",
     },
 
-    /* ======================
-       HOTEL LISTING
-    ====================== */
     listing: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: "Listing", // Hotel
     },
 
-    /* ======================
-       ROOM TYPE (NEW)
-    ====================== */
     room: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "Room", // Deluxe / Suite Room Model
+      ref: "Room",
     },
 
     roomsBooked: {
@@ -35,9 +26,6 @@ const bookingSchema = mongoose.Schema(
       default: 1, // user can book 2 rooms etc
     },
 
-    /* ======================
-       SELF CHECK-IN / OUT
-    ====================== */
     qrToken: String,
 
     checkIn: {
@@ -60,9 +48,6 @@ const bookingSchema = mongoose.Schema(
       default: false,
     },
 
-    /* ======================
-       GUESTS & PRICE
-    ====================== */
     guests: {
       type: Number,
       required: true,
@@ -74,10 +59,9 @@ const bookingSchema = mongoose.Schema(
     },
     pricePerNight: { type: Number, required: true },
     nights: { type: Number, required: true },
+    lockedPrice: { type: Boolean, default: false },
+    priceLockedAt: { type: Date },
 
-    /* ======================
-       PAYMENT
-    ====================== */
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed", "refunded"],
@@ -102,9 +86,6 @@ const bookingSchema = mongoose.Schema(
       amount: Number,
     },
 
-    /* ======================
-       BOOKING STATUS
-    ====================== */
     status: {
       type: String,
       enum: [
