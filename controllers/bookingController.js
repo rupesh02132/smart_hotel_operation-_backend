@@ -9,73 +9,78 @@ const {
 } = require("../service/bookingService");
 const Notification = require("../models/Notification");
 
-const { processRefund } = require("../service/refundService");
-const asyncHandler =require("express-async-handler");
-
 const QRCode = require("qrcode");
 const jwt = require("jsonwebtoken");
 const { getIO } = require("../utils/socket");
 const Booking = require("../models/Booking");
 const Room = require("../models/Room");
-const { calculateDynamicPrice } = require("../utils/dynamicPricing");
-
+const { calculateDynamicPrice } = require("../service/pricingService");
 
 
 const createBooking = async (req, res) => {
   try {
-    const { room, checkInDate, checkOutDate } = req.body;
+    const {
+      room,
+      listing,
+      guests,
+      checkInDate,
+      checkOutDate,
+      checkIn,
+      checkOut,
+    } = req.body;
 
-    /* ======================
-       VALIDATION
-    ====================== */
 
-    if (!room || !checkInDate || !checkOutDate) {
-      throw new Error("Room, check-in and check-out dates are required");
+    const finalCheckIn = checkInDate || checkIn;
+    const finalCheckOut = checkOutDate || checkOut;
+
+    if (!room || !finalCheckIn || !finalCheckOut) {
+      return res.status(400).json({
+        message: "Room, check-in and check-out dates are required",
+      });
     }
 
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
-
-    if (isNaN(checkIn) || isNaN(checkOut)) {
-      throw new Error("Invalid date format");
+    if (!req.user?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (checkOut <= checkIn) {
-      throw new Error("Check-out must be after check-in");
+    const checkInParsed = new Date(finalCheckIn);
+    const checkOutParsed = new Date(finalCheckOut);
+
+    if (isNaN(checkInParsed) || isNaN(checkOutParsed)) {
+      return res.status(400).json({ message: "Invalid date format" });
     }
 
-    /* ======================
-       🔥 DYNAMIC PRICING
-    ====================== */
+    if (checkOutParsed <= checkInParsed) {
+      return res.status(400).json({
+        message: "Check-out must be after check-in",
+      });
+    }
 
-    const pricing = await calculateDynamicPrice(room, checkInDate);
 
-    /* ======================
-       CALCULATE NIGHTS
-    ====================== */
 
-    const nights = Math.ceil(
-      (checkOut - checkIn) / (1000 * 60 * 60 * 24)
+    const pricing = await calculateDynamicPrice(room, finalCheckIn);
+
+    const nights = Math.max(
+      Math.ceil(
+        (checkOutParsed - checkInParsed) / (1000 * 60 * 60 * 24)
+      ),
+      1
     );
 
     const totalPrice = pricing.finalPrice * nights;
 
-    /* ======================
-       CREATE BOOKING
-    ====================== */
-
     const createdBooking = await createBookingService({
       userId: req.user._id,
-      ...req.body,
+      listing,
+      room,
+      guests,
+      checkIn: finalCheckIn,
+      checkOut: finalCheckOut,
       pricePerNight: pricing.finalPrice,
       totalPrice,
-      lockedPrice: true,             // 🔒 lock price
+      lockedPrice: true,
       priceLockedAt: new Date(),
     });
-
-    /* ======================
-       POPULATE BOOKING
-    ====================== */
 
     const populatedBooking = await Booking.findById(createdBooking._id)
       .populate("user", "firstname lastname email")
@@ -84,36 +89,33 @@ const createBooking = async (req, res) => {
         populate: { path: "listing", select: "title city" },
       });
 
-    /* ======================
-       🔔 NOTIFICATION
-    ====================== */
+    try {
+      await Notification.create({
+        user: populatedBooking.user._id,
+        type: "booking",
+        title: "Booking Confirmed",
+        message: `Room ${populatedBooking.room.roomNumber} at ${populatedBooking.room.listing.title} booked`,
+        link: `/booking/${populatedBooking._id}`,
+      });
+    } catch (err) {
+      console.warn("Notification error:", err.message);
+    }
 
-    await Notification.create({
-      user: populatedBooking.user._id,
-      type: "booking",
-      title: "Booking Confirmed",
-      message: `Room ${populatedBooking.room.roomNumber} at ${populatedBooking.room.listing.title} booked`,
-      link: `/booking/${populatedBooking._id}`,
-    });
+    try {
+      const io = getIO();
+      io.emit("newBooking", {
+        bookingId: populatedBooking._id,
+        guest: populatedBooking.user?.firstname,
+        hotel: populatedBooking.room?.listing?.title,
+        roomNumber: populatedBooking.room?.roomNumber,
+        amount: populatedBooking.totalPrice,
+        status: populatedBooking.status,
+      });
+    } catch (err) {
+      console.warn("Socket error:", err.message);
+    }
 
-    /* ======================
-       📡 SOCKET EVENT
-    ====================== */
-
-    getIO().emit("newBooking", {
-      bookingId: populatedBooking._id,
-      guest: populatedBooking.user?.firstname,
-      hotel: populatedBooking.room?.listing?.title,
-      roomNumber: populatedBooking.room?.roomNumber,
-      amount: populatedBooking.totalPrice,
-      status: populatedBooking.status,
-    });
-
-    /* ======================
-       RESPONSE
-    ====================== */
-
-    res.status(201).json({
+    return res.status(201).json({
       ...populatedBooking.toObject(),
       pricing,
       nights,
@@ -121,17 +123,12 @@ const createBooking = async (req, res) => {
 
   } catch (err) {
     console.error("❌ Booking Error:", err.message);
-    res.status(400).json({ message: err.message });
+    return res.status(400).json({ message: err.message });
   }
 };
 
 
 
-
-
-/* ============================================================
-   GET MY BOOKINGS
-============================================================ */
 const getMyBookings = async (req, res) => {
   try {
     const bookings = await getMyBookingsService(req.user._id);
@@ -141,9 +138,6 @@ const getMyBookings = async (req, res) => {
   }
 };
 
-/* ============================================================
-   GET HOST BOOKINGS
-============================================================ */
 const getHostBookings = async (req, res) => {
   try {
     const bookings = await getHostBookingsService(req.user._id);
