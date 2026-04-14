@@ -3,52 +3,47 @@ const { razorpayWebhook ,razorpayRedirect} = require("../controllers/webhookCont
 const crypto = require("crypto");
 const router = express.Router();
 
-/* Razorpay Webhook */
 router.post(
   "/razorpay",
   express.raw({ type: "application/json" }),
   razorpayWebhook
 );
-// router.get(
-//   "/razorpay/payment/:id",
-//   razorpayRedirect
-// );
 
 
 
 
-router.post("/verify", async (req, res) => {
-  const {
-    bookingId,
-    paymentId,
-    paymentLinkId,
-    signature,
-  } = req.body;
+// router.post("/verify", async (req, res) => {
+//   const {
+//     bookingId,
+//     paymentId,
+//     paymentLinkId,
+//     signature,
+//   } = req.body;
 
-  const body = paymentLinkId + "|" + paymentId;
+//   const body = paymentLinkId + "|" + paymentId;
 
-  const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(body)
-    .digest("hex");
+//   const expectedSignature = crypto
+//     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+//     .update(body)
+//     .digest("hex");
 
-  console.log("EXPECTED:", expectedSignature);
-  console.log("RECEIVED:", signature);
+//   console.log("EXPECTED:", expectedSignature);
+//   console.log("RECEIVED:", signature);
 
-  if (expectedSignature !== signature) {
-    return res.status(400).json({
-      message: "Invalid signature ❌",
-    });
-  }
+//   if (expectedSignature !== signature) {
+//     return res.status(400).json({
+//       message: "Invalid signature ❌",
+//     });
+//   }
 
-  const booking = await Booking.findById(bookingId);
+//   const booking = await Booking.findById(bookingId);
 
-  booking.isPaid = true;
-  booking.paymentStatus = "paid";
-  booking.paymentMethod = "Razorpay";
+//   booking.isPaid = true;
+//   booking.paymentStatus = "paid";
+//   booking.paymentMethod = "Razorpay";
 
-  await booking.save();
+//   await booking.save();
 
-  res.json({ success: true });
-});
+//   res.json({ success: true });
+// });
 module.exports = router;

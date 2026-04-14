@@ -5,14 +5,15 @@ const { getIO } = require("../utils/socket");
 
 const razorpayWebhook = async (req, res) => {
   try {
+    console.log("🔥 WEBHOOK HIT");
+
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers["x-razorpay-signature"];
 
-    const crypto = require("crypto");
-
+    // ✅ Verify signature using RAW body
     const expectedSignature = crypto
       .createHmac("sha256", secret)
-      .update(req.body)
+      .update(req.body) // must be raw buffer
       .digest("hex");
 
     if (signature !== expectedSignature) {
@@ -20,22 +21,27 @@ const razorpayWebhook = async (req, res) => {
       return res.status(400).json({ message: "Invalid signature" });
     }
 
+    // ✅ Parse event safely
     const event = JSON.parse(req.body.toString());
 
-    console.log("FULL EVENT:", JSON.stringify(event, null, 2));
+    console.log("✅ EVENT TYPE:", event.event);
 
-    const payment = event.payload?.payment?.entity;
+    const paymentEntity = event.payload?.payment?.entity;
+    const paymentLinkEntity = event.payload?.payment_link?.entity;
 
+    // ✅ Extract bookingId safely
     const bookingId =
-      payment?.notes?.bookingId ||
-      event.payload?.payment_link?.entity?.reference_id;
-
+      paymentEntity?.notes?.bookingId ||
+      paymentLinkEntity?.reference_id;
 
     if (!bookingId) {
       console.log("❌ No bookingId found");
       return res.json({ received: true });
     }
 
+    // ===========================
+    // ✅ PAYMENT SUCCESS CASE
+    // ===========================
     if (
       event.event === "payment.captured" ||
       event.event === "payment_link.paid"
@@ -52,45 +58,54 @@ const razorpayWebhook = async (req, res) => {
         return res.json({ received: true });
       }
 
+      // ✅ Update booking
       booking.isPaid = true;
       booking.paymentStatus = "paid";
       booking.paymentMethod = "Razorpay";
 
       booking.paymentDetails = {
-        paymentId: payment.id,
-        status: payment.status,
-        method: payment.method,
-        amount: payment.amount / 100,
+        paymentId: paymentEntity?.id || paymentLinkEntity?.id || "N/A",
+        status: paymentEntity?.status || "paid",
+        method: paymentEntity?.method || "payment_link",
+        amount:
+          (paymentEntity?.amount || paymentLinkEntity?.amount || 0) / 100,
       };
 
       await booking.save();
 
       console.log("✅ PAYMENT UPDATED:", booking._id);
 
+      // ✅ FIXED: initialize io
+      const io = getIO();
       io.emit("paymentSuccess", { bookingId });
 
+      // ✅ Invoice (non-blocking safe)
       try {
         await generateInvoiceAndEmail(booking);
       } catch (err) {
-        console.error("Invoice error:", err);
+        console.error("⚠️ Invoice error:", err.message);
       }
     }
 
+    // ===========================
+    // ❌ PAYMENT FAILED CASE
+    // ===========================
     if (event.event === "payment.failed") {
       if (bookingId) {
         await Booking.findByIdAndUpdate(bookingId, {
           paymentStatus: "failed",
         });
+        console.log("❌ Payment marked as failed:", bookingId);
       }
     }
 
-    res.json({ received: true });
+    return res.json({ received: true });
+
   } catch (err) {
     console.error("❌ Webhook error:", err);
-    res.status(500).json({ message: "Webhook failed" });
+    return res.status(500).json({ message: "Webhook failed" });
   }
 };
-
 
 
 

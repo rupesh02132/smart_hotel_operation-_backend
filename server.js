@@ -13,9 +13,8 @@ connectDB();
 
 const app = express();
 
-/* ============================================================
-   MIDDLEWARE
-============================================================ */
+app.use("/api/webhook", webhookRoutes);
+
 
 // ✅ CORS (FIXED)
 const allowedOrigins = [
@@ -55,8 +54,8 @@ if (process.env.NODE_ENV !== "production") {
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.static("public"));
 
-// ✅ WEBHOOK (keep before json if raw needed)
-app.use("/api/webhook", webhookRoutes);
+
+
 
 // Background jobs
 require("./jobs/pricingScheduler");

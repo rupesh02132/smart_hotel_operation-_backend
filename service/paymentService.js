@@ -91,6 +91,7 @@ const createPaymentLinkByBookingId = async (bookingId) => {
       amount: totalPrice * 100, // ✅ FIXED
       currency: "INR",
       reference_id: booking._id.toString(),
+      notes: { bookingId: booking._id.toString() },
 
       customer: {
         name: `${booking.user.firstname} ${booking.user.lastname}`,
