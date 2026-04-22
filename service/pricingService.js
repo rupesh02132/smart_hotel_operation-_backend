@@ -5,44 +5,24 @@ const Room = require("../models/Room");
    CONFIG
 ====================== */
 
-const WEEKEND_MULTIPLIER = 1.2;
+const WEEKEND_MULTIPLIER = 1.0;
 
 const SEASONAL_MULTIPLIER = {
-  peak: 1.35,   // Dec, Jan, May, Jun
+  peak: 1.001,   // Dec, Jan, May, Jun
   normal: 1.0,
   low: 0.85,    // Feb, Jul, Aug
 };
 
-const FESTIVAL_MULTIPLIER = 1.2;
+const FESTIVAL_MULTIPLIER = 1.0;
 
 const CITY_DEMAND = {
-  mumbai: 1.4,
-  delhi: 1.3,
-  bangalore: 1.3,
-  chennai: 1.25,
-  hyderabad: 1.25,
-  pune: 1.2,
-  goa: 1.35,
-  jaipur: 1.3,
-  manali: 1.35,
-  shimla: 1.3,
-  udaipur: 1.35,
-  rishikesh: 1.25,
-  varanasi: 1.2,
-  kolkata: 1.2,
-  chandigarh: 1.2,
-  jaipur: 1.3,
-  lucknow: 1.2,
-  dehradun: 1.2,
-  chandigarh: 1.2,
-  noida: 1.2,
-  patna: 1.2,
-  default: 1.1,
+  mumbai: 1.01,
+  delhi: 1.0,
+  bangalore: 1.0,
+  chennai: 1.0,
+  default: 1.0
 };
 
-/* ======================
-   HELPERS
-====================== */
 
 const calculateSeason = (month) => {
   if ([12, 1, 5, 6].includes(month)) return "peak";
@@ -52,9 +32,8 @@ const calculateSeason = (month) => {
 
 const isFestivalSeason = (month) => [10, 11, 12].includes(month);
 
-/* ======================
-   MAIN ENGINE
-====================== */
+  //  MAIN ENGINE
+
 
 const calculateDynamicPrice = async (roomId, checkInDate) => {
   try {
@@ -107,8 +86,8 @@ const calculateDynamicPrice = async (roomId, checkInDate) => {
       ? Math.round((bookedRooms / totalRooms) * 100)
       : 0;
 
-    if (occupancyRate > 70) factor *= 1.3;
-    else if (occupancyRate > 50) factor *= 1.15;
+    if (occupancyRate > 70) factor *= 1.1;
+    else if (occupancyRate > 50) factor *= 1.01;
 
     /* ======================
        WEEKEND

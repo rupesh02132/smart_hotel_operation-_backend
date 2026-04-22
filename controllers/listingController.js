@@ -73,33 +73,40 @@ const createListing = asyncHandler(async (req, res) => {
 });
 
 
-/* ======================
-   BULK CREATE
-====================== */
+
 const createMultipleListings = asyncHandler(async (req, res) => {
-  const createdListings = await listingService.createMultipleListings(
-    req.body.listings,
-  );
+  const listings = req.body;
+
+  if (!Array.isArray(listings)) {
+    return res.status(400).json({ message: "Expected an array of listings" });
+  }
+
+  const createdListings = await listingService.createMultipleListings(listings);
 
   res.status(201).json(createdListings);
 });
 
-/* ======================
-   UPDATE LISTING (🔥 FIXED)
-====================== */
 const updateListing = async (req, res) => {
   try {
+    if (!req.params.id) {
+      return res.status(400).json({ message: "Listing ID is required" });
+    }
+
+
+    
     const updatedListing = await listingService.updateListing(
       req.params.id,
       req.user._id,
       req.body,
-      req,
+      req // for images
     );
 
-    res.json(updatedListing);
+    res.status(200).json(updatedListing);
   } catch (error) {
-    console.error("Update listing error:", error);
-    res.status(500).json({ message: error.message });
+    console.error("❌ Update listing error:", error);
+    res.status(500).json({
+      message: error.message || "Failed to update listing",
+    });
   }
 };
 

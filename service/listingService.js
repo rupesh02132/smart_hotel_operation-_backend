@@ -71,26 +71,34 @@ const createListingService = async (req, userId) => {
 ====================== */
 const updateListing = async (id, userId, data, req = null) => {
   const listing = await Listing.findById(id);
-  if (!listing) throw new Error("Hotel not found");
+
+  if (!listing) {
+    throw new Error("Hotel not found");
+  }
 
   if (listing.user.toString() !== userId.toString()) {
     throw new Error("Not authorized");
   }
 
-  listing.title = data.title ?? listing.title;
-  listing.address = data.address ?? listing.address;
-  listing.city = data.city ?? listing.city;
-  listing.country = data.country ?? listing.country;
-  listing.description = data.description ?? listing.description;
-  listing.hotelcode = data.hotelcode ?? listing.hotelcode;
-  listing.category = data.category ?? listing.category;
+  /* ======================
+     BASIC FIELD UPDATE
+  ====================== */
 
+  if (data.title !== undefined) listing.title = data.title;
+  if (data.address !== undefined) listing.address = data.address;
+  if (data.city !== undefined) listing.city = data.city;
+  if (data.country !== undefined) listing.country = data.country;
+  if (data.description !== undefined) listing.description = data.description;
+  if (data.hotelcode !== undefined) listing.hotelcode = data.hotelcode;
+  if (data.category !== undefined) listing.category = data.category;
 
+  /* ======================
+     IMAGE UPDATE
+  ====================== */
 
-  /* ✅ Images */
   if (req) {
     const newImages = normalizeImages(req);
-    if (newImages.length) {
+    if (newImages.length > 0) {
       listing.images = [...new Set([...listing.images, ...newImages])];
     }
   }
@@ -99,20 +107,40 @@ const updateListing = async (id, userId, data, req = null) => {
     listing.images = data.images;
   }
 
-  /* ✅ SAFE LOCATION UPDATE */
-  if (req?.body?.longitude && req?.body?.latitude) {
-    const lng = parseFloat(req.body.longitude);
-    const lat = parseFloat(req.body.latitude);
+  /* ======================
+     LOCATION UPDATE (FIXED)
+  ====================== */
 
-    if (!isNaN(lng) && !isNaN(lat)) {
-      listing.location = {
-        type: "Point",
-        coordinates: [lng, lat],
-      };
+  if (data.longitude !== undefined && data.latitude !== undefined) {
+    const lng = parseFloat(data.longitude);
+    const lat = parseFloat(data.latitude);
+
+    if (isNaN(lng) || isNaN(lat)) {
+      throw new Error("Invalid latitude or longitude");
     }
+
+    listing.location = {
+      type: "Point",
+      coordinates: [lng, lat],
+    };
   }
 
-  return await listing.save();
+  /* ======================
+     SAVE WITH ERROR LOG
+  ====================== */
+
+  try {
+    const updated = await listing.save();
+    return updated;
+  } catch (err) {
+    console.error("❌ Mongoose Save Error:", err);
+    throw new Error("Database update failed");
+  }
+};
+
+const createMultipleListings = async (listingsData) => {
+  const createdListings = await Listing.insertMany(listingsData);
+  return createdListings;
 };
 
 /* ======================
@@ -177,13 +205,11 @@ const getListings = async (queryOptions) => {
     title,
     rating,
     sortBy,
-
     lat,
     lng,
     radius = 10000,
-
     skip = 0,
-    limit = 15,
+    limit = 20,
   } = queryOptions;
 
   const query = {};
@@ -260,6 +286,7 @@ module.exports = {
   getListings,
   getListingById,
   createListingService,
+  createMultipleListings,
   updateListing,
   deleteListing,
   getHostListings,
