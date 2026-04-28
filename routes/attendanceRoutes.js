@@ -1,18 +1,15 @@
 const express = require("express");
+const attendanceController = require("../controllers/attendanceController");
 const {
-  staffCheckIn,
-  staffCheckOut,
-  getAllAttendance,
-} = require("../controllers/attendanceController");
-const authenticate = require("../middleware/authMiddleware");
+  authenticate,
+  protect,
+  authorize,
+} = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-/* STAFF */
-router.post("/checkin", authenticate, staffCheckIn);
-router.post("/checkout", authenticate, staffCheckOut);
-
-/* ADMIN */
-router.get("/", authenticate, getAllAttendance);
+router.post("/checkin", authenticate, attendanceController.staffCheckIn);
+router.post("/checkout", authenticate, attendanceController.staffCheckOut);
+router.get("/", authenticate, attendanceController.getAllAttendance);
 
 module.exports = router;

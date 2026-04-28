@@ -55,6 +55,7 @@ const createListingService = async (req, userId) => {
     title: req.body.title,
     address: req.body.address,
     hotelcode: req.body.hotelcode,
+    priceRange: req.body.priceRange,
     city: req.body.city,
     country: req.body.country,
     description: req.body.description,
@@ -90,6 +91,7 @@ const updateListing = async (id, userId, data, req = null) => {
   if (data.country !== undefined) listing.country = data.country;
   if (data.description !== undefined) listing.description = data.description;
   if (data.hotelcode !== undefined) listing.hotelcode = data.hotelcode;
+  if (data.priceRange !== undefined) listing.priceRange = data.priceRange;
   if (data.category !== undefined) listing.category = data.category;
 
   /* ======================
@@ -189,7 +191,7 @@ const getAllListings = async () => {
     .populate("user", "firstname lastname role")
     .populate({
       path: "rooms",
-      select: "roomNumber basePrice status roomType images"
+      select: "roomNumber basePrice status roomType images floor guests Beds"
     })
     .sort({ createdAt: -1 });
 };
@@ -268,6 +270,7 @@ const getListings = async (queryOptions) => {
 
   const listings = await Listing.find(query)
     .populate("user", "firstname lastname")
+    .populate("rooms", "roomNumber basePrice status roomType images")
     .skip(Number(skip))
     .limit(Number(limit))
     .sort(sort)

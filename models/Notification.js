@@ -5,12 +5,12 @@ const notificationSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null
     },
 
     type: {
       type: String,
-      enum: ["booking", "payment", "hotel", "general"],
+      enum: ["booking", "payment", "hotel", "promotion", "general"],
       default: "general",
     },
 

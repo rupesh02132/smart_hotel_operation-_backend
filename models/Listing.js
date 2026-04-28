@@ -8,6 +8,7 @@ const listingSchema = mongoose.Schema(
     address: { type: String, required: true },
     city: { type: String, required: true, index: true },
     country: { type: String, required: true },
+    priceRange: { type: [Number], default: [0] },
     description: { type: String, required: true },
     images: { type: [String], required: true },
     category: { type: String, required: true },

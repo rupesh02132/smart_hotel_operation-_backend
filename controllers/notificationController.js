@@ -1,40 +1,58 @@
 const Notification = require("../models/Notification");
-
-/* ================= CREATE ================= */
+const { getIO } = require("../utils/socket"); 
 
 const createNotification = async (req, res) => {
   try {
-    const { user, title, message, type, link } = req.body;
+    const { user, title, message, type, link, broadcast } = req.body;
 
-    if (!user || !title || !message) {
-      return res.status(400).json({
-        message: "Missing required notification fields",
-      });
+    if (!title || !message) {
+      return res.status(400).json({ message: "Title and message required" });
     }
 
-    const notification = await Notification.create({
-      user,
-      title,
-      message,
-      type,
-      link,
-    });
+    let notification;
+    let targetRoom = null;
 
-    /* ⭐ socket emit */
-    const io = req.app.get("io");
+    if (broadcast === true) {
+      notification = await Notification.create({
+        user: null,
+        title,
+        message,
+        type: type || "general",
+        link,
+        broadcast: true,
+      });
+    } else {
+      if (!user) {
+        return res.status(400).json({ message: "User ID required when not broadcasting" });
+      }
+      notification = await Notification.create({
+        user,
+        title,
+        message,
+        type,
+        link,
+        broadcast: false,
+      });
+      targetRoom = user.toString();
+    }
 
-    if (io) {
-      io.to(user.toString()).emit(
-        "newNotification",
-        notification
-      );
+    // ✅ Use getIO() instead of req.app.get("io")
+    const io = getIO();
+    if (broadcast) {
+      io.emit("newNotification", notification);
+      console.log("📢 Broadcast sent");
+    } else {
+      io.to(targetRoom).emit("newNotification", notification);
+      console.log(`🔔 Notification sent to user ${targetRoom}`);
     }
 
     res.status(201).json(notification);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
+
 
 /* ================= GET USER ================= */
 
